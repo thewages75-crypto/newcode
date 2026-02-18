@@ -651,40 +651,33 @@ def handle_restrictions(message):
     # =========================
     if state == "JOINING":
 
-        # If NOT Telegram album but media type
-        if message.content_type in ['photo', 'video'] and not message.media_group_id:
+        # Only media allowed
+        if message.content_type in ['photo', 'video']:
 
-            user_id = message.chat.id
+            increment_media(user_id)
 
-            with media_buffer_lock:
-                user_media_buffer[user_id].append(message)
+            activated = check_activation(user_id)
 
-                if user_id in user_media_timer:
-                    return
+            if activated:
+                bot.send_message(
+                    user_id,
+                    "🎉 You are now active for 6 hours!"
+                )
+            else:
+                remaining = REQUIRED_MEDIA - get_activation_data(user_id)[0]
+                bot.send_message(
+                    user_id,
+                    f"📸 {remaining} media left to join."
+                )
 
-                user_media_timer[user_id] = True
+            return False   # allow relay of media
 
-            def finalize_user_album():
-                time.sleep(1.2)  # wait to collect more media
-
-                with media_buffer_lock:
-                    media_list = user_media_buffer.pop(user_id, [])
-                    user_media_timer.pop(user_id, None)
-
-                if len(media_list) == 1:
-                    broadcast_queue.put({
-                        "type": "single",
-                        "message": media_list[0]
-                    })
-                else:
-                    broadcast_queue.put({
-                        "type": "album",
-                        "messages": media_list
-                    })
-
-            threading.Thread(target=finalize_user_album).start()
-
-            return
+        # Block text during joining
+        bot.send_message(
+            user_id,
+            f"🔒 Send {REQUIRED_MEDIA} media to join."
+        )
+        return True
 
     # =========================
     # 🔴 INACTIVE STATE
