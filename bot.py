@@ -150,6 +150,66 @@ def init_db():
 # =========================
 # 👤 USER EXISTENCE
 # =========================
+def delete_message_globally(bot_message_id):
+
+    with get_connection() as conn:
+        with conn.cursor() as c:
+            c.execute("""
+                SELECT receiver_id
+                FROM message_map
+                WHERE bot_message_id=%s
+            """, (bot_message_id,))
+            rows = c.fetchall()
+
+    for row in rows:
+        try:
+            bot.delete_message(row[0], bot_message_id)
+        except:
+            pass
+
+    with get_connection() as conn:
+        with conn.cursor() as c:
+            c.execute("""
+                DELETE FROM message_map
+                WHERE bot_message_id=%s
+            """, (bot_message_id,))
+def purge_user_messages(user_id):
+
+    with get_connection() as conn:
+        with conn.cursor() as c:
+            c.execute("""
+                SELECT bot_message_id, receiver_id
+                FROM message_map
+                WHERE original_user_id=%s
+            """, (user_id,))
+            rows = c.fetchall()
+
+    for bot_msg_id, receiver_id in rows:
+        try:
+            bot.delete_message(receiver_id, bot_msg_id)
+        except:
+            pass
+
+    with get_connection() as conn:
+        with conn.cursor() as c:
+            c.execute("""
+                DELETE FROM message_map
+                WHERE original_user_id=%s
+            """, (user_id,))
+
+def get_original_sender(bot_message_id):
+
+    with get_connection() as conn:
+        with conn.cursor() as c:
+            c.execute("""
+                SELECT original_user_id
+                FROM message_map
+                WHERE bot_message_id=%s
+                LIMIT 1
+            """, (bot_message_id,))
+            row = c.fetchone()
+
+    return row[0] if row else None
 
 def user_exists(user_id):
     with get_connection() as conn:
@@ -1077,6 +1137,26 @@ def start_background_workers():
 # =========================
 # ADMIN COMMANDS
 # ========================
+@bot.message_handler(commands=['purge'])
+def purge_command(message):
+
+    if not is_admin(message.chat.id):
+        return
+
+    if not message.reply_to_message:
+        bot.send_message(message.chat.id, "Reply to a relayed message.")
+        return
+
+    bot_msg_id = message.reply_to_message.message_id
+    user_id = get_original_sender(bot_msg_id)
+
+    if not user_id:
+        bot.send_message(message.chat.id, "User not found.")
+        return
+
+    purge_user_messages(user_id)
+    bot.send_message(message.chat.id, "🔥 User messages purged.")
+
 @bot.message_handler(commands=['stats'])
 def stats_command(message):
 
@@ -1132,16 +1212,15 @@ def info_command(message):
     if not is_admin(message.chat.id):
         return
 
-    parts = message.text.split()
-
-    if len(parts) < 2:
-        bot.send_message(message.chat.id, "Usage: /info USER_ID")
+    if not message.reply_to_message:
+        bot.send_message(message.chat.id, "Reply to a relayed message.")
         return
 
-    try:
-        user_id = int(parts[1])
-    except:
-        bot.send_message(message.chat.id, "Invalid ID.")
+    bot_msg_id = message.reply_to_message.message_id
+    user_id = get_original_sender(bot_msg_id)
+
+    if not user_id:
+        bot.send_message(message.chat.id, "User not found.")
         return
 
     with get_connection() as conn:
@@ -1178,30 +1257,29 @@ def info_command(message):
 🚫 Manual Ban: {banned}
 ⏳ Auto Ban: {auto_banned}
 ⭐ Whitelisted: {whitelisted}
-
-🕒 Last Activation: {last_time}
         """
     )
+
 @bot.message_handler(commands=['ban'])
 def ban_command(message):
 
     if not is_admin(message.chat.id):
         return
 
-    parts = message.text.split()
-
-    if len(parts) < 2:
-        bot.send_message(message.chat.id, "Usage: /ban USER_ID")
+    if not message.reply_to_message:
+        bot.send_message(message.chat.id, "Reply to a relayed message.")
         return
 
-    try:
-        target_id = int(parts[1])
-    except:
-        bot.send_message(message.chat.id, "Invalid ID.")
+    bot_msg_id = message.reply_to_message.message_id
+    user_id = get_original_sender(bot_msg_id)
+
+    if not user_id:
+        bot.send_message(message.chat.id, "User not found.")
         return
 
-    ban_user(target_id)
-    bot.send_message(message.chat.id, "User banned.")
+    ban_user(user_id)
+    bot.send_message(message.chat.id, "🚫 User banned.")
+
 @bot.message_handler(commands=['unban'])
 def unban_command(message):
 
