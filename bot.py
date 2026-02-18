@@ -27,7 +27,7 @@ REQUIRED_MEDIA = 12
 INACTIVITY_LIMIT = 6 * 60 * 60  # 6 hours
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
+delay = min(0.05, 1 / max(1, len(receivers) / 25))
 broadcast_queue = queue.Queue()
 media_groups = defaultdict(list)
 album_timers = {}
@@ -986,7 +986,7 @@ def _process_album(messages):
                 for sent in sent_msgs:
                     save_mapping(sent.message_id, sender_id, user_id)
 
-                time.sleep(0.04)
+                time.sleep(delay)
 
             except Exception as e:
                 print("Album send error:", e)
