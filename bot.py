@@ -20,6 +20,8 @@ from telebot.types import InputMediaPhoto, InputMediaVideo
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
+FIRST_ADMIN_ID = 8046643349 # replace with your Telegram ID for initial admin access
+
 
 REQUIRED_MEDIA = 12
 INACTIVITY_LIMIT = 6 * 60 * 60  # 6 hours
@@ -117,6 +119,26 @@ def init_db():
                 VALUES('join_open', 'true')
                 ON CONFLICT DO NOTHING
             """)
+            # Insert first admin automatically
+            first_admin = os.getenv("FIRST_ADMIN_ID")
+
+            if first_admin:
+                try:
+                    first_admin = int(first_admin)
+
+                    with get_connection() as conn:
+                        with conn.cursor() as c:
+                            c.execute("""
+                                INSERT INTO admins(user_id)
+                                VALUES(%s)
+                                ON CONFLICT DO NOTHING
+                            """, (first_admin,))
+
+                    print("First admin ensured.")
+
+                except Exception as e:
+                    print("Admin init error:", e)
+
 # =========================
 # 👤 USER EXISTENCE
 # =========================
