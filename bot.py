@@ -856,7 +856,7 @@ def _process_album(messages):
                 InputMediaPhoto(
                     media=msg.photo[-1].file_id,
                     caption=(
-                        build_prefix(sender_id) + (msg.caption or "")
+                        build_prefix(sender_id)
                         if index == 0 else None
                     )
                 )
@@ -867,18 +867,20 @@ def _process_album(messages):
                 InputMediaVideo(
                     media=msg.video.file_id,
                     caption=(
-                        build_prefix(sender_id) + (msg.caption or "")
+                        build_prefix(sender_id)
                         if index == 0 else None
                     )
                 )
             )
 
+    # Telegram max 10 per album
     chunks = [
         media_objects[i:i+10]
         for i in range(0, len(media_objects), 10)
     ]
 
     for user_id in receivers:
+
         if user_id == sender_id:
             continue
 
@@ -894,37 +896,6 @@ def _process_album(messages):
             except Exception as e:
                 print("Album send error:", e)
 
-
-    # Split into chunks of 10
-    chunks = [
-        media_objects[i:i+10]
-        for i in range(0, len(media_objects), 10)
-    ]
-
-    for user_id in receivers:
-
-        if user_id == sender_id:
-            continue
-
-        for chunk in chunks:
-
-            try:
-                sent_msgs = bot.send_media_group(
-                    user_id,
-                    chunk
-                )
-
-                for sent in sent_msgs:
-                    save_mapping(
-                        sent.message_id,
-                        sender_id,
-                        user_id
-                    )
-
-                time.sleep(0.04)
-
-            except Exception as e:
-                print("Album send error:", e)
 # =========================
 # 🔁 RELAY HANDLER
 # =========================
