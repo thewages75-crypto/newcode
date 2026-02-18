@@ -13,6 +13,7 @@ from turtle import delay
 import psycopg2
 import telebot
 from telebot.types import InputMediaPhoto, InputMediaVideo
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
 # =========================
@@ -1157,6 +1158,39 @@ def purge_command(message):
 
     purge_user_messages(user_id)
     bot.send_message(message.chat.id, "🔥 User messages purged.")
+@bot.message_handler(commands=['panel'])
+def admin_panel(message):
+
+    if not is_admin(message.chat.id):
+        return
+
+    markup = InlineKeyboardMarkup(row_width=2)
+
+    markup.add(
+        InlineKeyboardButton("📊 Stats", callback_data="admin_stats"),
+        InlineKeyboardButton("👥 Users", callback_data="admin_users")
+    )
+
+    markup.add(
+        InlineKeyboardButton("🚪 Open Join", callback_data="admin_open_join"),
+        InlineKeyboardButton("🔒 Close Join", callback_data="admin_close_join")
+    )
+
+    markup.add(
+        InlineKeyboardButton("⭐ Whitelist", callback_data="admin_whitelist"),
+        InlineKeyboardButton("🧹 Clear Map", callback_data="admin_clearmap")
+    )
+
+    markup.add(
+        InlineKeyboardButton("🚫 Banned List", callback_data="admin_banned"),
+        InlineKeyboardButton("⚙ Settings", callback_data="admin_settings")
+    )
+
+    bot.send_message(
+        message.chat.id,
+        "🛠 Admin Control Panel",
+        reply_markup=markup
+    )
 
 @bot.message_handler(commands=['stats'])
 def stats_command(message):
