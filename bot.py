@@ -34,6 +34,9 @@ album_timers = {}
 user_media_buffer = defaultdict(list)
 user_media_timer = {}
 media_buffer_lock = threading.Lock()
+activation_buffer = defaultdict(int)
+activation_timer = {}
+activation_lock = threading.Lock()
 
 # =========================
 # 🗄 DATABASE CONNECTION
@@ -651,33 +654,50 @@ def handle_restrictions(message):
     # =========================
     if state == "JOINING":
 
-        # Only media allowed
         if message.content_type in ['photo', 'video']:
 
-            increment_media(user_id)
+            with activation_lock:
+                activation_buffer[user_id] += 1
 
-            activated = check_activation(user_id)
+                if user_id in activation_timer:
+                    return False  # allow relay but don't respond yet
 
-            if activated:
-                bot.send_message(
-                    user_id,
-                    "🎉 You are now active for 6 hours!"
-                )
-            else:
-                remaining = REQUIRED_MEDIA - get_activation_data(user_id)[0]
-                bot.send_message(
-                    user_id,
-                    f"📸 {remaining} media left to join."
-                )
+                activation_timer[user_id] = True
 
-            return False   # allow relay of media
+            def finalize_activation():
+                time.sleep(1.0)
 
-        # Block text during joining
+                with activation_lock:
+                    amount = activation_buffer.pop(user_id, 0)
+                    activation_timer.pop(user_id, None)
+
+                if amount > 0:
+                    increment_media(user_id, amount)
+
+                    activated = check_activation(user_id)
+
+                    if activated:
+                        bot.send_message(
+                            user_id,
+                            "🎉 You are now active for 6 hours!"
+                        )
+                    else:
+                        remaining = REQUIRED_MEDIA - get_activation_data(user_id)[0]
+                        bot.send_message(
+                            user_id,
+                            f"📸 {remaining} media left to join."
+                        )
+
+            threading.Thread(target=finalize_activation).start()
+
+            return False  # allow media relay
+
         bot.send_message(
             user_id,
             f"🔒 Send {REQUIRED_MEDIA} media to join."
         )
         return True
+
 
     # =========================
     # 🔴 INACTIVE STATE
@@ -686,28 +706,48 @@ def handle_restrictions(message):
 
         if message.content_type in ['photo', 'video']:
 
-            increment_media(user_id)
-            activated = check_activation(user_id)
+            with activation_lock:
+                activation_buffer[user_id] += 1
 
-            if activated:
-                bot.send_message(
-                    user_id,
-                    "🎉 You are reactivated for 6 hours!"
-                )
-            else:
-                remaining = REQUIRED_MEDIA - get_activation_data(user_id)[0]
-                bot.send_message(
-                    user_id,
-                    f"📸 {remaining} media left to reactivate."
-                )
+                if user_id in activation_timer:
+                    return False
 
-            return False  # allow relay
+                activation_timer[user_id] = True
+
+            def finalize_reactivation():
+                time.sleep(1.0)
+
+                with activation_lock:
+                    amount = activation_buffer.pop(user_id, 0)
+                    activation_timer.pop(user_id, None)
+
+                if amount > 0:
+                    increment_media(user_id, amount)
+
+                    activated = check_activation(user_id)
+
+                    if activated:
+                        bot.send_message(
+                            user_id,
+                            "🎉 You are reactivated for 6 hours!"
+                        )
+                    else:
+                        remaining = REQUIRED_MEDIA - get_activation_data(user_id)[0]
+                        bot.send_message(
+                            user_id,
+                            f"📸 {remaining} media left to reactivate."
+                        )
+
+            threading.Thread(target=finalize_reactivation).start()
+
+            return False
 
         bot.send_message(
             user_id,
             f"⏳ You are inactive.\nSend {REQUIRED_MEDIA} media to reactivate."
         )
         return True
+
 
     # =========================
     # 🟢 ACTIVE STATE
