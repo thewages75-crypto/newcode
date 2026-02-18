@@ -849,19 +849,16 @@ def _process_album(messages):
 
     media_objects = []
 
-    # Build media list with prefix on first item only
     for index, msg in enumerate(messages):
-
-        caption = msg.caption or ""
-
-        if index == 0:
-            caption = build_prefix(sender_id) + caption
 
         if msg.content_type == "photo":
             media_objects.append(
                 InputMediaPhoto(
                     media=msg.photo[-1].file_id,
-                    caption=caption
+                    caption=(
+                        build_prefix(sender_id) + (msg.caption or "")
+                        if index == 0 else None
+                    )
                 )
             )
 
@@ -869,34 +866,28 @@ def _process_album(messages):
             media_objects.append(
                 InputMediaVideo(
                     media=msg.video.file_id,
-                    caption=caption
+                    caption=(
+                        build_prefix(sender_id) + (msg.caption or "")
+                        if index == 0 else None
+                    )
                 )
             )
 
-    # Split into chunks of 10 (Telegram limit)
     chunks = [
         media_objects[i:i+10]
         for i in range(0, len(media_objects), 10)
     ]
 
     for user_id in receivers:
-
         if user_id == sender_id:
             continue
 
         for chunk in chunks:
             try:
-                sent_msgs = bot.send_media_group(
-                    user_id,
-                    chunk
-                )
+                sent_msgs = bot.send_media_group(user_id, chunk)
 
                 for sent in sent_msgs:
-                    save_mapping(
-                        sent.message_id,
-                        sender_id,
-                        user_id
-                    )
+                    save_mapping(sent.message_id, sender_id, user_id)
 
                 time.sleep(0.04)
 
@@ -944,11 +935,12 @@ def _process_album(messages):
 )
 def relay(message):
 
-    # Step 1: Apply restrictions
     if handle_restrictions(message):
         return
 
-    # Step 2: Album Handling
+    # =========================
+    # 1️⃣ TELEGRAM ALBUM
+    # =========================
     if message.media_group_id:
 
         group_id = message.media_group_id
@@ -957,8 +949,10 @@ def relay(message):
         if group_id in album_timers:
             return
 
+        album_timers[group_id] = True
+
         def finalize():
-            time.sleep(0.8)
+            time.sleep(1.0)
 
             album = media_groups.pop(group_id, [])
             album_timers.pop(group_id, None)
@@ -969,15 +963,52 @@ def relay(message):
                     "messages": album
                 })
 
-        album_timers[group_id] = True
         threading.Thread(target=finalize).start()
+        return
 
-    else:
-        # Single message
-        broadcast_queue.put({
-            "type": "single",
-            "message": message
-        })
+    # =========================
+    # 2️⃣ MANUAL MEDIA BUFFER
+    # =========================
+    if message.content_type in ['photo', 'video']:
+
+        user_id = message.chat.id
+
+        with media_buffer_lock:
+            user_media_buffer[user_id].append(message)
+
+            if user_id in user_media_timer:
+                return
+
+            user_media_timer[user_id] = True
+
+        def finalize_user():
+            time.sleep(1.2)
+
+            with media_buffer_lock:
+                media_list = user_media_buffer.pop(user_id, [])
+                user_media_timer.pop(user_id, None)
+
+            if len(media_list) == 1:
+                broadcast_queue.put({
+                    "type": "single",
+                    "message": media_list[0]
+                })
+            else:
+                broadcast_queue.put({
+                    "type": "album",
+                    "messages": media_list
+                })
+
+        threading.Thread(target=finalize_user).start()
+        return
+
+    # =========================
+    # 3️⃣ TEXT
+    # =========================
+    broadcast_queue.put({
+        "type": "single",
+        "message": message
+    })
 # =========================
 # ⏳ INACTIVITY SCHEDULER
 # =========================
