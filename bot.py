@@ -8,6 +8,7 @@ import threading
 import queue
 from contextlib import contextmanager
 from collections import defaultdict
+from turtle import delay
 
 import psycopg2
 import telebot
@@ -932,7 +933,6 @@ def _process_single(message):
 
         except Exception as e:
             print("Single send error:", e)
-delay = min(0.05, 1 / max(1, len(receivers) / 25))
 
 # =========================
 # 📸 PROCESS ALBUM MESSAGE
@@ -986,7 +986,7 @@ def _process_album(messages):
 
                 for sent in sent_msgs:
                     save_mapping(sent.message_id, sender_id, user_id)
-
+                delay = min(0.05, 1 / max(1, len(receivers) / 25))
                 time.sleep(delay)
 
             except Exception as e:
