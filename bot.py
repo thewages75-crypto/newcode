@@ -27,7 +27,6 @@ REQUIRED_MEDIA = 12
 INACTIVITY_LIMIT = 6 * 60 * 60  # 6 hours
 
 bot = telebot.TeleBot(BOT_TOKEN)
-delay = min(0.05, 1 / max(1, len(receivers) / 25))
 broadcast_queue = queue.Queue()
 media_groups = defaultdict(list)
 album_timers = {}
@@ -933,6 +932,8 @@ def _process_single(message):
 
         except Exception as e:
             print("Single send error:", e)
+delay = min(0.05, 1 / max(1, len(receivers) / 25))
+
 # =========================
 # 📸 PROCESS ALBUM MESSAGE
 # =========================
