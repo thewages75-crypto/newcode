@@ -122,21 +122,21 @@ def init_db():
             # =========================
             # FIRST ADMIN INIT
             # =========================
-    
+
             first_admin = os.getenv("FIRST_ADMIN_ID")
-    
+
             if first_admin:
                 try:
                     first_admin = int(first_admin)
-    
+
                     c.execute("""
                         INSERT INTO admins(user_id)
                         VALUES(%s)
                         ON CONFLICT DO NOTHING
                     """, (first_admin,))
-    
+
                     print("First admin ensured.")
-    
+
                 except Exception as e:
                     print("Admin init error:", e)
 
@@ -226,6 +226,15 @@ def remove_admin(user_id):
                 "DELETE FROM admins WHERE user_id=%s",
                 (user_id,)
             )
+def build_prefix(user_id):
+
+    username = get_username(user_id)
+
+    if username:
+        return f"👤 @{username}\n\n"
+
+    return "👤 Unknown\n\n"
+
 # =========================
 # 🚫 BAN HELPERS
 # =========================
@@ -784,11 +793,33 @@ def _process_single(message):
             continue
 
         try:
-            sent = bot.copy_message(
-                chat_id=user_id,
-                from_chat_id=sender_id,
-                message_id=message.message_id
-            )
+            # sent = bot.copy_message(
+            #     chat_id=user_id,
+            #     from_chat_id=sender_id,
+            #     message_id=message.message_id
+            # )
+            prefix = build_prefix(sender_id)
+
+            if message.content_type == "text":
+                sent = bot.send_message(
+                    user_id,
+                    prefix + message.text
+                )
+
+            elif message.content_type == "photo":
+                sent = bot.send_photo(
+                    user_id,
+                    message.photo[-1].file_id,
+                    caption=prefix + (message.caption or "")
+                )
+
+            elif message.content_type == "video":
+                sent = bot.send_video(
+                    user_id,
+                    message.video.file_id,
+                    caption=prefix + (message.caption or "")
+                )
+
 
             save_mapping(
                 sent.message_id,
@@ -805,6 +836,28 @@ def _process_single(message):
 # =========================
 
 def _process_album(messages):
+    for index, msg in enumerate(messages):
+
+    caption = msg.caption or ""
+
+    if index == 0:
+        caption = build_prefix(sender_id) + caption
+
+    if msg.content_type == "photo":
+        media_objects.append(
+            InputMediaPhoto(
+                media=msg.photo[-1].file_id,
+                caption=caption
+            )
+        )
+
+    elif msg.content_type == "video":
+        media_objects.append(
+            InputMediaVideo(
+                media=msg.video.file_id,
+                caption=caption
+            )
+        )
 
     sender_id = messages[0].chat.id
     receivers = get_active_receivers()
@@ -817,7 +870,7 @@ def _process_album(messages):
             media_objects.append(
                 InputMediaPhoto(
                     media=msg.photo[-1].file_id,
-                    caption=msg.caption
+                    caption=msg.caption if msg.caption else None
                 )
             )
 
@@ -825,7 +878,7 @@ def _process_album(messages):
             media_objects.append(
                 InputMediaVideo(
                     media=msg.video.file_id,
-                    caption=msg.caption
+                    caption=msg.caption if msg.caption else None
                 )
             )
 
