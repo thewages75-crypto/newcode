@@ -836,39 +836,17 @@ def _process_single(message):
 # =========================
 
 def _process_album(messages):
-    for index, msg in enumerate(messages):
-
-    caption = msg.caption or ""
-
-    if index == 0:
-        caption = build_prefix(sender_id) + caption
-
-    if msg.content_type == "photo":
-        media_objects.append(
-            InputMediaPhoto(
-                media=msg.photo[-1].file_id,
-                caption=caption
-            )
-        )
-
-    elif msg.content_type == "video":
-        media_objects.append(
-            InputMediaVideo(
-                media=msg.video.file_id,
-                caption=caption
-            )
-        )
 
     sender_id = messages[0].chat.id
     receivers = get_active_receivers()
 
     media_objects = []
 
+    # Build media list with prefix on first item only
     for index, msg in enumerate(messages):
 
         caption = msg.caption or ""
 
-        # Add prefix only to first media
         if index == 0:
             caption = build_prefix(sender_id) + caption
 
@@ -887,6 +865,37 @@ def _process_album(messages):
                     caption=caption
                 )
             )
+
+    # Split into chunks of 10 (Telegram limit)
+    chunks = [
+        media_objects[i:i+10]
+        for i in range(0, len(media_objects), 10)
+    ]
+
+    for user_id in receivers:
+
+        if user_id == sender_id:
+            continue
+
+        for chunk in chunks:
+            try:
+                sent_msgs = bot.send_media_group(
+                    user_id,
+                    chunk
+                )
+
+                for sent in sent_msgs:
+                    save_mapping(
+                        sent.message_id,
+                        sender_id,
+                        user_id
+                    )
+
+                time.sleep(0.04)
+
+            except Exception as e:
+                print("Album send error:", e)
+
 
     # Split into chunks of 10
     chunks = [
