@@ -119,25 +119,26 @@ def init_db():
                 VALUES('join_open', 'true')
                 ON CONFLICT DO NOTHING
             """)
-            # Insert first admin automatically
-            first_admin = os.getenv("FIRST_ADMIN_ID")
+        # =========================
+        # FIRST ADMIN INIT
+        # =========================
 
-            if first_admin:
-                try:
-                    first_admin = int(first_admin)
+        first_admin = os.getenv("FIRST_ADMIN_ID")
 
-                    with get_connection() as conn:
-                        with conn.cursor() as c:
-                            c.execute("""
-                                INSERT INTO admins(user_id)
-                                VALUES(%s)
-                                ON CONFLICT DO NOTHING
-                            """, (first_admin,))
+        if first_admin:
+            try:
+                first_admin = int(first_admin)
 
-                    print("First admin ensured.")
+                c.execute("""
+                    INSERT INTO admins(user_id)
+                    VALUES(%s)
+                    ON CONFLICT DO NOTHING
+                """, (first_admin,))
 
-                except Exception as e:
-                    print("Admin init error:", e)
+                print("First admin ensured.")
+
+            except Exception as e:
+                print("Admin init error:", e)
 
 # =========================
 # 👤 USER EXISTENCE
