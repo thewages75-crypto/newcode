@@ -864,13 +864,19 @@ def _process_album(messages):
 
     media_objects = []
 
-    for msg in messages:
+    for index, msg in enumerate(messages):
+
+        caption = msg.caption or ""
+
+        # Add prefix only to first media
+        if index == 0:
+            caption = build_prefix(sender_id) + caption
 
         if msg.content_type == "photo":
             media_objects.append(
                 InputMediaPhoto(
                     media=msg.photo[-1].file_id,
-                    caption=msg.caption if msg.caption else None
+                    caption=caption
                 )
             )
 
@@ -878,7 +884,7 @@ def _process_album(messages):
             media_objects.append(
                 InputMediaVideo(
                     media=msg.video.file_id,
-                    caption=msg.caption if msg.caption else None
+                    caption=caption
                 )
             )
 
