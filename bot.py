@@ -31,6 +31,10 @@ bot = telebot.TeleBot(BOT_TOKEN)
 broadcast_queue = queue.Queue()
 media_groups = defaultdict(list)
 album_timers = {}
+user_media_buffer = defaultdict(list)
+user_media_timer = {}
+media_buffer_lock = threading.Lock()
+
 # =========================
 # 🗄 DATABASE CONNECTION
 # =========================
@@ -647,30 +651,40 @@ def handle_restrictions(message):
     # =========================
     if state == "JOINING":
 
-        if message.content_type in ['photo', 'video']:
+        # If NOT Telegram album but media type
+        if message.content_type in ['photo', 'video'] and not message.media_group_id:
 
-            increment_media(user_id)
-            activated = check_activation(user_id)
+            user_id = message.chat.id
 
-            if activated:
-                bot.send_message(
-                    user_id,
-                    "🎉 You are now active for 6 hours!"
-                )
-            else:
-                remaining = REQUIRED_MEDIA - get_activation_data(user_id)[0]
-                bot.send_message(
-                    user_id,
-                    f"📸 {remaining} media left to join."
-                )
+            with media_buffer_lock:
+                user_media_buffer[user_id].append(message)
 
-            return False  # allow relay
+                if user_id in user_media_timer:
+                    return
 
-        bot.send_message(
-            user_id,
-            f"🔒 Send {REQUIRED_MEDIA} media to join."
-        )
-        return True
+                user_media_timer[user_id] = True
+
+            def finalize_user_album():
+                time.sleep(1.2)  # wait to collect more media
+
+                with media_buffer_lock:
+                    media_list = user_media_buffer.pop(user_id, [])
+                    user_media_timer.pop(user_id, None)
+
+                if len(media_list) == 1:
+                    broadcast_queue.put({
+                        "type": "single",
+                        "message": media_list[0]
+                    })
+                else:
+                    broadcast_queue.put({
+                        "type": "album",
+                        "messages": media_list
+                    })
+
+            threading.Thread(target=finalize_user_album).start()
+
+            return
 
     # =========================
     # 🔴 INACTIVE STATE
