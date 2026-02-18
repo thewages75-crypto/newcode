@@ -817,14 +817,16 @@ def _process_single(message):
                 sent = bot.send_photo(
                     user_id,
                     message.photo[-1].file_id,
-                    caption=prefix + (message.caption or "")
+                    caption=prefix 
+                    # + (message.caption or "")
                 )
 
             elif message.content_type == "video":
                 sent = bot.send_video(
                     user_id,
                     message.video.file_id,
-                    caption=prefix + (message.caption or "")
+                    caption=prefix 
+                    # +(message.caption or "")
                 )
 
 
