@@ -231,9 +231,9 @@ def build_prefix(user_id):
     username = get_username(user_id)
 
     if username:
-        return f"👤 @{username}\n\n"
+        return f"{username}~\n"
 
-    return "👤 Unknown\n\n"
+    return "👤 Unknown\n"
 
 # =========================
 # 🚫 BAN HELPERS
@@ -583,7 +583,7 @@ def capture_username(message):
 
     bot.send_message(
         user_id,
-        f"✅ Username @{username} set.\n\nNow send {REQUIRED_MEDIA} media to join."
+        f"✅ {username} set.\n\nNow send {REQUIRED_MEDIA} media to join."
     )
 # =========================
 # 🚫 BANNED WORD CHECK
@@ -711,13 +711,6 @@ def handle_restrictions(message):
 
             increment_media(user_id)
             renewed = check_activation(user_id)
-
-            if renewed:
-                bot.send_message(
-                    user_id,
-                    "🔄 6 hour cycle renewed."
-                )
-
         return False
 
     return False
