@@ -1514,6 +1514,47 @@ def admin_menu(message):
 → Show banned words list
         """
     )
+@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_"))
+def admin_callbacks(call):
+
+    if not is_admin(call.message.chat.id):
+        return
+
+    data = call.data
+
+    if data == "admin_stats":
+        stats_command(call.message)
+
+    elif data == "admin_open_join":
+        set_join_status(True)
+        bot.answer_callback_query(call.id, "Join opened.")
+
+    elif data == "admin_close_join":
+        set_join_status(False)
+        bot.answer_callback_query(call.id, "Join closed.")
+
+    elif data == "admin_clearmap":
+        with get_connection() as conn:
+            with conn.cursor() as c:
+                c.execute("DELETE FROM message_map")
+        bot.answer_callback_query(call.id, "Message map cleared.")
+
+    elif data == "admin_banned":
+        with get_connection() as conn:
+            with conn.cursor() as c:
+                c.execute("""
+                    SELECT user_id FROM users WHERE banned=TRUE
+                """)
+                rows = c.fetchall()
+
+        if rows:
+            text = "\n".join(str(r[0]) for r in rows)
+        else:
+            text = "No banned users."
+
+        bot.send_message(call.message.chat.id, text)
+
+    bot.answer_callback_query(call.id)
 
 # =========================
 # 🚀 MAIN BOOT
